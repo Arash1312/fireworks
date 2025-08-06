@@ -1,0 +1,21 @@
+<BitteAiChat
+  model="near-ai-llama-3-8b"   // or any other key from the registry
+  accountId="alice.near"
+  …https://github.com/Arash1312/fireworks
+/>
+near-ai-llama-3-8b
+near-ai-llama-3-70b
+openai-gpt-4-turbo
+anthropic-claude-3-sonnet
+import { BitteAiChat } from '@bitte-ai/chat';
+
+export default function MyPage() {
+  return (
+    <BitteAiChat
+      model="near-ai-llama-3-8b"
+      accountId="alice.near"          // the user who pays (optional if wallet is connected)
+      apiUrl="https://api.bitte.ai"   // optional override
+      theme="dark"                    // optional UI styling
+    />
+  );
+}
