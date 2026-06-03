@@ -33,7 +33,8 @@ model="near-ai-llama-3-8b"   // or any other key from the registry
   accountId="alice.near"
 export default function MyPage() {
   return (
-    <BitteAiChat
+       <BitteAiChat
+      model="near-ai-llama-3-8b"
       model="near-ai-llama-3-8b"
       accountId="alice.near"          // the user who pays (optional if wallet is connected)
       apiUrl="https://api.bitte.ai"   // optional override
