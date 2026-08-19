@@ -1,44 +1,36 @@
-<BitteAiChat
-  model="near-ai-llama-3-8b"   // or any other key from the registry
-  accountId="alice.near"
-  …https://github.com/Arash1312/fireworks
-/>
-near-ai-llama-3-8b
-near-ai-llama-3-70b
-openai-gpt-4-turbo
-anthropic-claude-3-sonnet
-import { BitteAiChat } from '@bitte-ai/chat';
+# NovaHash
 
-export default function MyPage() {
-  return (
-    <BitteAiChat
-      model="near-ai-llama-3-8b"
-      accountId="alice.near"          // the user who pays (optional if wallet is connected)
-      apiUrl="https://api.bitte.ai"   // optional override
-      theme="dark"                    // optional UI styling
-    />
-  );
-}
-<BitteAiChat
-  model="near-ai-llama-3-8b"   // or any other key from the registry
-  accountId="alice.near"
-  …https://github.com/Arash1312/fireworks
-/>
-near-ai-llama-3-8b
-near-ai-llama-3-70b
-openai-gpt-4-turbo
-anthropic-claude-3-sonnet
-import { BitteAiChat } from '@bitte-ai/chat';
-model="near-ai-llama-3-8b"   // or any other key from the registry
-  accountId="alice.near"
-export default function MyPage() {
-  return (
-       <BitteAiChat
-      model="near-ai-llama-3-8b"
-      model="near-ai-llama-3-8b"
-      accountId="alice.near"          // the user who pays (optional if wallet is connected)
-      apiUrl="https://api.bitte.ai"   // optional override
-      theme="dark"                    // optional UI styling
-    />
-  );
-}
+NovaHash is a lightweight Python utility for generating SHA256 hashes from text or files.
+
+## Features
+
+- Fast SHA256 hashing
+- File hashing
+- Text hashing
+- No external dependencies
+- Cross platform
+
+## Installation
+
+```bash
+git clone https://github.com/yourusername/NovaHash.git
+cd NovaHash
+```
+
+## Usage
+
+Hash text
+
+```bash
+python novahash.py --text "Hello World"
+```
+
+Hash a file
+
+```bash
+python novahash.py --file document.pdf
+```
+
+## License
+
+MIT
