@@ -1,0 +1,390 @@
+VYRO/
+├── vyro.py
+├── requirements.txt
+├── README.md
+├── LICENSE
+└── .gitignore
+
+
+========================
+FILE: vyro.py
+========================
+
+#!/usr/bin/env python3
+
+"""
+VYRO
+Fast. Clean. On-chain.
+
+A lightweight EVM network diagnostics CLI.
+No API key required.
+"""
+
+import argparse
+import json
+import sys
+import time
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
+
+
+VERSION = "1.0.0"
+
+
+def rpc_call(rpc_url, method, params=None, timeout=8):
+    """Execute a JSON-RPC request against an EVM endpoint."""
+
+    if params is None:
+        params = []
+
+    payload = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params
+    }).encode("utf-8")
+
+    request = Request(
+        rpc_url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "VYRO/1.0"
+        },
+        method="POST"
+    )
+
+    started = time.perf_counter()
+
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            body = response.read().decode("utf-8")
+            latency = (time.perf_counter() - started) * 1000
+
+            data = json.loads(body)
+
+            if "error" in data:
+                raise RuntimeError(data["error"].get("message", "RPC error"))
+
+            return data.get("result"), latency
+
+    except HTTPError as exc:
+        raise RuntimeError(f"HTTP {exc.code}") from exc
+
+    except URLError as exc:
+        raise RuntimeError(f"Connection failed: {exc.reason}") from exc
+
+    except TimeoutError:
+        raise RuntimeError("Request timed out") from None
+
+
+def hex_to_int(value):
+    """Convert an Ethereum hex quantity to an integer."""
+
+    if value is None:
+        return 0
+
+    return int(value, 16)
+
+
+def wei_to_gwei(value):
+    return value / 1_000_000_000
+
+
+def print_line(label, value):
+    print(f"{label:<18} {value}")
+
+
+def inspect_network(rpc_url):
+    print()
+    print("╭──────────────────────────────────────────╮")
+    print("│                  VYRO                    │")
+    print("│          EVM Network Inspector           │")
+    print("╰──────────────────────────────────────────╯")
+    print()
+
+    print(f"RPC                {rpc_url}")
+    print("-" * 46)
+
+    try:
+        chain_id_hex, latency = rpc_call(
+            rpc_url,
+            "eth_chainId"
+        )
+
+        block_hex, _ = rpc_call(
+            rpc_url,
+            "eth_blockNumber"
+        )
+
+        gas_hex, _ = rpc_call(
+            rpc_url,
+            "eth_gasPrice"
+        )
+
+        client, _ = rpc_call(
+            rpc_url,
+            "web3_clientVersion"
+        )
+
+        syncing, _ = rpc_call(
+            rpc_url,
+            "eth_syncing"
+        )
+
+        chain_id = hex_to_int(chain_id_hex)
+        block_number = hex_to_int(block_hex)
+        gas_price = hex_to_int(gas_hex)
+
+        if syncing is False:
+            sync_status = "Synced"
+        else:
+            sync_status = "Syncing"
+
+        print_line("Status", "ONLINE")
+        print_line("Latency", f"{latency:.2f} ms")
+        print_line("Chain ID", chain_id)
+        print_line("Block", f"{block_number:,}")
+        print_line("Gas Price", f"{wei_to_gwei(gas_price):.3f} Gwei")
+        print_line("Sync", sync_status)
+        print_line("Client", client)
+
+        print()
+        print("Health")
+
+        if latency < 150:
+            health = "Excellent"
+        elif latency < 400:
+            health = "Good"
+        elif latency < 800:
+            health = "Slow"
+        else:
+            health = "Poor"
+
+        print_line("RPC Health", health)
+
+        print()
+        print("VYRO check completed successfully.")
+
+    except Exception as exc:
+        print()
+        print("Status             OFFLINE")
+        print(f"Error              {exc}")
+        print()
+        sys.exit(1)
+
+
+def benchmark(rpc_url, requests_count):
+    print()
+    print("VYRO RPC Benchmark")
+    print("-" * 46)
+    print(f"Endpoint           {rpc_url}")
+    print(f"Requests           {requests_count}")
+    print()
+
+    latencies = []
+    failures = 0
+
+    for index in range(requests_count):
+        try:
+            _, latency = rpc_call(
+                rpc_url,
+                "eth_blockNumber"
+            )
+
+            latencies.append(latency)
+
+            print(
+                f"[{index + 1:02d}/{requests_count}] "
+                f"{latency:8.2f} ms"
+            )
+
+        except Exception as exc:
+            failures += 1
+            print(
+                f"[{index + 1:02d}/{requests_count}] "
+                f"FAILED - {exc}"
+            )
+
+    print()
+
+    if not latencies:
+        print("No successful requests.")
+        sys.exit(1)
+
+    average = sum(latencies) / len(latencies)
+    fastest = min(latencies)
+    slowest = max(latencies)
+
+    print("Results")
+    print("-" * 46)
+    print_line("Successful", len(latencies))
+    print_line("Failed", failures)
+    print_line("Average", f"{average:.2f} ms")
+    print_line("Fastest", f"{fastest:.2f} ms")
+    print_line("Slowest", f"{slowest:.2f} ms")
+
+    success_rate = (
+        len(latencies) / requests_count
+    ) * 100
+
+    print_line("Success Rate", f"{success_rate:.1f}%")
+    print()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="vyro",
+        description="Fast EVM network diagnostics CLI."
+    )
+
+    parser.add_argument(
+        "--rpc",
+        required=True,
+        help="EVM JSON-RPC endpoint"
+    )
+
+    parser.add_argument(
+        "--benchmark",
+        type=int,
+        metavar="N",
+        help="Run N RPC latency tests"
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"VYRO {VERSION}"
+    )
+
+    args = parser.parse_args()
+
+    if args.benchmark:
+        if args.benchmark < 1 or args.benchmark > 1000:
+            parser.error(
+                "--benchmark must be between 1 and 1000"
+            )
+
+        benchmark(
+            args.rpc,
+            args.benchmark
+        )
+
+    else:
+        inspect_network(args.rpc)
+
+
+if __name__ == "__main__":
+    main()
+
+
+========================
+FILE: requirements.txt
+========================
+
+# VYRO uses Python standard library only.
+# No external dependencies required.
+
+
+========================
+FILE: .gitignore
+========================
+
+__pycache__/
+*.py[cod]
+*.log
+.env
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+
+
+========================
+FILE: LICENSE
+========================
+
+MIT License
+
+Copyright (c) 2026 VYRO
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+========================
+FILE: README.md
+========================
+
+# VYRO
+
+### Fast. Clean. On-chain.
+
+VYRO is a lightweight command-line tool for inspecting and benchmarking
+EVM-compatible JSON-RPC endpoints.
+
+It gives developers a fast way to check:
+
+- RPC availability
+- Network Chain ID
+- Current block height
+- Gas price
+- Node synchronization status
+- RPC client version
+- Request latency
+- RPC reliability
+- Benchmark performance
+
+No API key.
+No database.
+No external dependencies.
+
+## Requirements
+
+Python 3.9+
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/YOUR_USERNAME/vyro.git
+cd vyro
+python vyro.py --rpc https://ethereum-rpc.publicnode.com
+python vyro.py --rpc https://ethereum-rpc.publicnode.com --benchmark 20
+python vyro.py --version
+╭──────────────────────────────────────────╮
+│                  VYRO                    │
+│          EVM Network Inspector           │
+╰──────────────────────────────────────────╯
+
+RPC                https://example-rpc.com
+----------------------------------------------
+Status             ONLINE
+Latency            82.41 ms
+Chain ID           1
+Block              23,456,789
+Gas Price          1.842 Gwei
+Sync               Synced
+Client             ExampleClient/1.0
+
+Health
+RPC Health         Excellent
+
+VYRO check completed successfully.
